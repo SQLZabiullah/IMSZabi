@@ -1,0 +1,1 @@
+DBCC UPDATEUSAGE('database_name') WITH COUNT_ROWS
