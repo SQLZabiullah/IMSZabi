@@ -1,0 +1,108 @@
+ 
+ Create database sampledb 
+
+ CREATE TABLE [dbo].[EMPLOYEE](
+	[EMPLOYEENO] [numeric](4, 0) NOT NULL,
+	[NAME] [varchar](10) NULL,
+	[JOB] [varchar](9) NULL,
+	[SALARY] [numeric](4, 0) NULL,
+) ON [PRIMARY]
+
+insert into EMPLOYEE values ( 1,'jhon','manager','5000')
+insert into EMPLOYEE values ( 2,'jhonY','ANALYST','6000')
+
+SELECT * FROM EMPLOYEE
+
+SELECT name, database_id, is_cdc_enabled FROM sys.databases
+WHERE is_cdc_enabled = 1
+
+
+-- Enable the database for CDC
+EXEC sys.sp_cdc_enable_db
+
+-- Create a new capture instance for the Category table
+EXEC sys.sp_cdc_enable_table 
+	@source_schema = N'dbo',
+	@source_name = N'EMPLOYEE',
+	@role_name = NULL;
+
+
+	-- View capture instance configuration
+EXEC sys.sp_cdc_help_change_data_capture;
+GO
+
+-- Disable all capture instances on the Category table
+EXEC sys.sp_cdc_disable_table
+	@source_schema = N'dbo',
+	@source_name = N'EMPLOYEE',
+	@capture_instance = N'all'
+
+
+	-- Create a new capture instance for the Category table
+EXEC sys.sp_cdc_enable_table 
+	@source_schema = N'dbo',
+	@source_name = N'EMPLOYEE',
+	@role_name = NULL;
+
+
+insert into EMPLOYEE values ( 3,'jhonYY','SUPERVOR','7000')
+insert into EMPLOYEE values ( 4,'jhonYY','ANALYST_M','8000')
+
+DELETE FROM EMPLOYEE WHERE  EMPLOYEENO=3
+
+--
+-- Now BACKUP  database 
+
+BACKUP DATABASE [sampledb ] TO DISK = N'C:\DATA\PSDemo.bak' 
+WITH INIT,  
+	 NAME = N'sampledb ', 
+	 COMPRESSION, 
+	 STATS = 10, 
+	 CHECKSUM;
+GO
+
+
+
+
+-- Now restore database  using TSQL and KEEP_CDC option
+RESTORE DATABASE [sampledb ] FROM DISK = N'C:\DATA\PSDemo.bak' 
+WITH FILE = 1, MOVE N'sampledb' TO N'C:\DATA\Test.mdf', 
+MOVE N'sampledb_log' TO N'C:\DATA\Test_1.ldf',keep_cdc,
+NOUNLOAD, STATS = 10
+
+
+GO
+
+-- Check for CDC existence
+
+
+
+
+
+-- Get the current job configuration values
+EXECUTE sys.sp_cdc_help_jobs
+
+
+-- Modify the capture job settings to increase the maxtrans to 5000 and decrease the pollinginterval (Number of seconds between log scan cycles) bydefault 0 to 1 second
+EXECUTE sys.sp_cdc_change_job 
+	@job_type = N'capture',
+    @maxscans = 10,
+    @maxtrans = 5000,
+	@pollinginterval = 1;
+
+-- Get the new job configuration values
+EXECUTE sys.sp_cdc_help_jobs
+
+
+-- Modify cleanup job settings to retain data for 10 days
+DECLARE @days INT = 10;
+DECLARE @minutes INT = @days*24*60;
+
+EXECUTE sys.sp_cdc_change_job 
+    @job_type = N'cleanup',
+    @retention = @minutes;
+GO
+
+-- Get the new job configuration values
+EXECUTE sys.sp_cdc_help_jobs
+
